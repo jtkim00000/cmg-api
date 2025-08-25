@@ -10,6 +10,50 @@ from sympy.parsing.sympy_parser import (
     function_exponentiation,
 )
 from sympy import sin, cos, tan, asin, acos, atan, sqrt, log, exp, pi, E, I, Abs
+from sympy import sympify, Eq, solve
+
+def parse_and_solve(query: str):
+    try:
+        # Case 1: Equation
+        if "=" in query:
+            lhs, rhs = query.split("=")
+            lhs_expr = sympify(lhs.strip())
+            rhs_expr = sympify(rhs.strip())
+            equation = Eq(lhs_expr, rhs_expr)
+            
+            result = solve(equation)
+            
+            return {
+                "ok": True,
+                "detected": "equation",
+                "result": [str(r) for r in result],
+                "steps": None,
+                "warnings": []
+            }
+
+        # Case 2: Expression
+        else:
+            expr = sympify(query)
+            
+            result = expr.simplify()
+            
+            return {
+                "ok": True,
+                "detected": "expression",
+                "result": str(result),
+                "steps": None,
+                "warnings": []
+            }
+
+    except Exception as e:
+        return {
+            "ok": False,
+            "detected": {},
+            "result": None,
+            "steps": None,
+            "warnings": [str(e)]
+        }
+
 
 # Allowed names (kept intentionally small; extend as needed)
 ALLOWED_FUNCS = {
