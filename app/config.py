@@ -1,0 +1,2 @@
+APP_NAME = "CMG API"
+VERSION = "0.1.0"
