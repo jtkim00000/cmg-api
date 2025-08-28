@@ -11,45 +11,85 @@ from sympy.parsing.sympy_parser import (
 from sympy import sin, cos, tan, asin, acos, atan, sqrt, log, exp, pi, E, I, Abs
 from sympy import sympify, Eq, solve
 
-def parse_and_solve(query: str):
+def parse_and_solve(query: str, task: str = "auto"):
     try:
-        # Case 1: Equation
-        if "=" in query:
-            lhs, rhs = query.split("=")
-            lhs_expr = sympify(lhs.strip())
-            rhs_expr = sympify(rhs.strip())
-            equation = Eq(lhs_expr, rhs_expr)
-            
-            result = solve(equation)
-            
+        # --- differentiate explicitly if requested ---
+        if task == "differentiate":
+            # Expect "expr" or allow "expr, var"
+            if "," in query:
+                raw_expr, raw_var = query.split(",", 1)
+                var = symbols(raw_var.strip())
+                expr = sympify(raw_expr.strip())
+            else:
+                var = symbols("x")
+                expr = sympify(query)
+
+            steps = explain_derivative(expr, var)
+            result = simplify(diff(expr, var))
             return {
                 "ok": True,
-                "detected": "equation",
-                "result": [str(r) for r in result],
-                "steps": None,
+                "detected": {"kind": "derivative", "var": str(var)},
+                "result": str(result),
+                "steps": steps,
                 "warnings": []
             }
 
-        # Case 2: Expression
-        else:
-            expr = sympify(query)
-            
-            result = expr.simplify()
-            
+        # --- equation if "=" present OR task == "solve" ---
+        if "=" in query or task == "solve":
+            if "=" in query:
+                lhs, rhs = query.split("=", 1)
+                lhs_expr = sympify(lhs.strip())
+                rhs_expr = sympify(rhs.strip())
+                eq = Eq(lhs_expr, rhs_expr)
+            else:
+                # treat expression == 0
+                expr = sympify(query)
+                eq = Eq(expr, 0)
+
+            # pick a variable (default x)
+            free = sorted(list(eq.free_symbols), key=lambda s: s.name)
+            var = free[0] if free else symbols("x")
+
+            steps = []
+            # try to classify degree
+            try:
+                deg = Poly(eq.lhs - eq.rhs, var).degree()
+            except Exception:
+                deg = None
+
+            if deg == 1:
+                steps = explain_linear(eq, var)
+            elif deg == 2:
+                steps = explain_quadratic(eq, var)
+            else:
+                steps = ["Solve symbolically and simplify."]
+
+            sol = solve(eq, var)
             return {
                 "ok": True,
-                "detected": "expression",
-                "result": str(result),
-                "steps": None,
+                "detected": {"kind": "equation", "var": str(var), "degree": deg},
+                "result": [str(s) for s in (sol if isinstance(sol, (list, tuple)) else [sol])],
+                "steps": steps,
                 "warnings": []
             }
+
+        # --- otherwise: treat as expression → simplify ---
+        expr = sympify(query)
+        result = simplify(expr)
+        return {
+            "ok": True,
+            "detected": {"kind": "expression"},
+            "result": str(result),
+            "steps": ["Simplify the expression."],
+            "warnings": []
+        }
 
     except Exception as e:
         return {
             "ok": False,
             "detected": {},
             "result": None,
-            "steps": None,
+            "steps": [],
             "warnings": [str(e)]
         }
 
