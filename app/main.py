@@ -10,7 +10,7 @@ def solve_math(payload: dict):
     query = payload.get("query")
     task = payload.get("task", "solve")
 
-    result = parse_and_solve(query)
+    result = parse_and_solve(query, task=task)
 
     return {"task": task, **result}
 #uvicorn app.main:app --reload
