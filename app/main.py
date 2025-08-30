@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-from sympy_ollama_tutor import analyze_and_solve, ask_ollama_to_explain
+from .sympy_ollama_tutor import analyze_and_solve, ask_ollama_to_explain
 
 app = FastAPI(title="Math Tutor API", description="Solve math problems with SymPy + Ollama")
 
