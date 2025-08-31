@@ -28,3 +28,5 @@ async def solve_problem(req: ProblemRequest):
     explanation = ask_ollama_to_explain(req.problem, sympy_out, model=req.model)
 
     return ProblemResponse(sympy_output=sympy_out, explanation=explanation)
+
+app.include_router(upload_router, prefix="/api")
