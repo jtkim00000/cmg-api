@@ -1,12 +1,19 @@
-# paste into ocr.py (replace your current cleaning logic)
 import re
 import requests
-import sys, json
 from PIL import Image
 import pytesseract
-from sympy_ollama_tutor import analyze_and_solve 
 
 def extract_math_from_text(raw_text: str) -> str:
+    """
+    Return a cleaned math expression from OCR output.
+    Strategy:
+     - normalize common unicode symbols
+     - remove leading prompt words ("solve", "find", ...)
+     - split lines, filter out purely textual lines
+     - prefer a line that contains '=' and at least one digit
+     - otherwise pick first sensible math-like line
+     - post-process: insert '*' between number and '(' and remove stray trailing 'y='
+    """
     if not raw_text:
         return ""
 
@@ -80,18 +87,14 @@ def extract_math_from_text(raw_text: str) -> str:
 # Example integration in your ocr workflow:
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print(json.dumps({"error": "No file provided"}))
-        sys.exit(1)
-    
-    image_path = sys.argv[1]
-    img = Image.open(image_path)
+    img = Image.open("/Users/jessekim/Desktop/CMG/cmg-api/uploaded_images/math.png")
     raw = pytesseract.image_to_string(img, config="--psm 6")  # tune psm if needed
     print("Raw OCR:", repr(raw))
 
     cleaned = extract_math_from_text(raw)
     print("Cleaned equation:", cleaned)
 
+    # optionally detect requested variable from the instruction (e.g., "Solve for y")
     m = re.search(r'(?i)solve\s+for\s+([A-Za-z])', raw)
     vars_to_send = [m.group(1)] if m else None
 
@@ -99,10 +102,9 @@ if __name__ == "__main__":
     if vars_to_send:
         payload["vars"] = vars_to_send
 
-    solution = analyze_and_solve(cleaned)
+    # send to your solver (adjust URL/path if your API expects /api/solve or different key)
+    url = "http://127.0.0.1:8000/solve"
+    resp = requests.post(url, json=payload, timeout=60)
+    print("API Response:", resp.status_code, resp.text)
 
-    print(json.dumps({
-        "raw": raw_text.strip(),
-        "cleaned": cleaned,
-        "solution": solution
-    }))
+    

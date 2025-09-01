@@ -1,11 +1,11 @@
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from pydantic import BaseModel
 from .sympy_ollama_tutor import analyze_and_solve, ask_ollama_to_explain
 from app.upload import router as upload_router
+from app.ocr_solver import process_image
 
-import subprocess
-import json
-import os
+import tempfile
+import shutil
 
 app = FastAPI(title="Math Tutor API", description="Solve math problems with SymPy + Ollama")
 
@@ -34,29 +34,26 @@ async def solve_problem(req: ProblemRequest):
     return ProblemResponse(sympy_output=sympy_out, explanation=explanation)
 
 @app.post("/upload")
-async def upload_file(file: UploadFile = File(...)):
-    # Save uploaded file temporarily
-    file_path = f"temp_{file.filename}"
-    with open(file_path, "wb") as f:
-        f.write(await file.read())
-
-    # Run ocr.py with the file path
-    process = subprocess.Popen(
-        ["python", "app/ocr.py", file_path],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    stdout, stderr = process.communicate()
-
-    # Clean up temp file
-    os.remove(file_path)
-
-    if process.returncode != 0:
-        return {"error": stderr.decode("utf-8")}
-
+async def upload_image(file: UploadFile = File(...)):
     try:
-        result = json.loads(stdout.decode("utf-8"))
-    except:
-        return {"error": "Invalid JSON from OCR script", "raw": stdout.decode("utf-8")}
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+            shutil.copyfileobj(file.file, tmp)
+            tmp_path = tmp.name
 
-    return result
+        result = process_image(tmp_path)
+
+        if not result.get("raw") or not result.get("cleaned"):
+            raise HTTPException(status_code=422, detail="OCR failed to extract meaningful text.")
+
+        return result
+
+    except HTTPException as e:
+        raise e 
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Processing failed: {str(e)}"
+        )
+    
+    #uvicorn app.main:app --reload --port 8000
+
